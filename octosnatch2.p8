@@ -1,7 +1,8 @@
 pico-8 cartridge // http://www.pico-8.com
-version 5
+version 4
 __lua__
-pushfactor=0 fmag=.04
+pushfactor=0 fmag=1 topv=.75 sinkv=.1
+maxpush=20 drag=0.9
 cls()
 
 octotimer=0
@@ -26,8 +27,8 @@ end
 
 function octosink()
 	if (octotimer == 1) then
-																				octo.y +=2
-	end		
+																				octo.vy+=sinkv
+	end
 end
 
 function legsdown()
@@ -51,28 +52,44 @@ function octosplay()
 	end
 end	
 
-function force()
-	if(btn(0)) octo.vx-=1*fmag
-	if(btn(1)) octo.vx+=1*fmag
-	if(btn(3)) octo.vy+=1*fmag
-	if(btn(2)) octo.vy-=1*fmag
-	
+--maybe don't need?
+function apply_force(x,y)
+	octo.vx+=x
+	octo.vy+=y
+end
+
+function keyboard()
+	--arrow key movement
+	if(btn(0)) octo.x -= 1
+	if(btn(1)) octo.x += 1
+	if(btn(3)) octo.vy += fmag
+	octopush()
+end
+
+function checkedges()
+	if(octo.x<0) octo.x=0
+	if(octo.x>128) octo.x=128
+	if(octo.y<0) octo.y=0
+	if(octo.y>128) octo.y=128
 end
 
 function octomove()
-	force()
-	octopush()
+	octosink()
+	--limit speed
+	octo.vy = min(octo.vy,topv)
+	octo.vy = drag*octo.vy
 	octo.x+=octo.vx
-	octo.y+=octo.vy						
+	octo.y+=octo.vy
+	checkedges()
 end
 
 function octopush()
-	if(btn(5)) then										
-				pushfactor+=1
+	if(btn(5)) then
+				pushfactor=min(pushfactor+1,maxpush)
 	else
 			if(pushfactor ~= 0) then
 			          sfx(3,2)
-			     octo.vy -= pushfactor*.2
+			     apply_force(0,-pushfactor*.2)
 			     pushfactor=0
 			end	                 
 	end
@@ -80,9 +97,9 @@ end
 
 
 function _update()
+	keyboard()
 	octomove()
 	octocount()
-	octosink()
 end
 
 function _draw()
