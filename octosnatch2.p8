@@ -1,13 +1,20 @@
 pico-8 cartridge // http://www.pico-8.com
 version 5
 __lua__
-octox=2 octoy=3 d=2 ofx=0 ofy=0
-octos=2 osx=2 osy =3 rx=false 
-pushfactor=0 speedy=0 speedx=0
+pushfactor=0 fmag=.04
 cls()
 
 octotimer=0
 music (o)
+
+octo={}
+octo.x=64
+octo.y=4
+octo.vx=0
+octo.vy=0
+octo.ax=0
+octo.ay=0
+octo.refl=false
 
 function octocount()
 	if (octotimer == 30) then
@@ -19,45 +26,54 @@ end
 
 function octosink()
 	if (octotimer == 1) then
-																				octoy +=2
+																				octo.y +=2
 	end		
 end
 
 function legsdown()
-	spr(2,octox,octoy,2,3,rx)
+	spr(2,octo.x,octo.y,2,3,octo.refl)
 end
 
 function legsup()
-	spr(4,octox-8,octoy,4,3,rx)
+	spr(4,octo.x-8,octo.y,4,3,octo.refl)
 end
 
 function naturalforces()
-	speedy-=2+speedy*.2	
-	speedx
+	speedy-=2+speedy*.2
+		
 end
 
-function octomovebeta()
- if(btn(0)) rx=true octox-=2 
- if(btn(1)) rx=false octox+=2
- if(btn(3)) octoy+=2							
+function octosplay()
+	if(btn(5)) then
+		legsup()
+	else
+		legsdown()
+	end
+end	
+
+function force()
+	if(btn(0)) octo.vx-=1*fmag
+	if(btn(1)) octo.vx+=1*fmag
+	if(btn(3)) octo.vy+=1*fmag
+	if(btn(2)) octo.vy-=1*fmag
+	
 end
 
 function octomove()
- if(btn(0)) rx=true octox-=2 
- if(btn(1)) rx=false octox+=2
- if(btn(3)) octoy+=2							
+	force()
+	octopush()
+	octo.x+=octo.vx
+	octo.y+=octo.vy						
 end
 
 function octopush()
 	if(btn(5)) then										
-				legsdown()
 				pushfactor+=1
 	else
-	legsup()	
 			if(pushfactor ~= 0) then
 			          sfx(3,2)
-			        octoy -= pushfactor*.2
-			        pushfactor=0
+			     octo.vy -= pushfactor*.2
+			     pushfactor=0
 			end	                 
 	end
 end
@@ -67,13 +83,11 @@ function _update()
 	octomove()
 	octocount()
 	octosink()
-	octopush()
 end
 
 function _draw()
 	map(0,0,0,0,16,32)
-	octopush()
-	--print(bor (btn(3) btn(5)))
+	octosplay()
 end
 __gfx__
 01111111011111110000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000
