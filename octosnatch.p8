@@ -41,9 +41,63 @@ function _init()
 	dolph.delta=4	-- for animation
 	dolph.speed=0.4
 	
+	fishcreate(6)
+	plantcreate(5)
+end
+
+function plantcreate(n)
+	plants={}
+	for i=1,n do
+	 --make plants in triplets
+		newplant={}
+		newplant.x=rnd(128)
+		newplant.y=128-rnd(12)
+		newplant.h=12+rnd(20)
+		newplant.w=2+rnd(3)
+		newplant.maxw=newplant.w
+		newplant.a=rnd(1)
+		newplant.c=11
+		
+		plantbro={}
+		plantbro.a=newplant.a+0.15
+		plantbro.w=newplant.w
+		plantbro.maxw=newplant.maxw
+		if plantbro.a>1 then plantbro.a-=1 end
+		plantbro.x=newplant.x-sin(plantbro.a)*plantbro.w
+		plantbro.y=newplant.y
+		plantbro.h=newplant.h
+		plantbro.c=11
+		
+		plantbra={}
+		plantbra.a=newplant.a+0.3
+		plantbra.w=newplant.w
+		plantbra.maxw=newplant.maxw
+		if plantbra.a>1 then plantbra.a-=1 end
+		plantbra.x=newplant.x-sin(plantbra.a)*plantbra.w
+		plantbra.y=newplant.y
+		plantbra.h=newplant.h
+		plantbra.c=11
+		
+		plantbae={}
+		plantbae.a=newplant.a+0.45
+		plantbae.w=newplant.w
+		plantbae.maxw=newplant.maxw
+		if plantbae.a>1 then plantbae.a-=1 end
+		plantbae.x=newplant.x-sin(plantbae.a)*plantbae.w
+		plantbae.y=newplant.y
+		plantbae.h=newplant.h
+		plantbae.c=3
+		
+		add(plants,newplant)
+		add(plants,plantbro)
+		add(plants,plantbra)
+		add(plants,plantbae)
+	end
+end
+
+function fishcreate(n)
 	fishes={}
-	numschools=6
-	numfish=1
+	numschools=n
 	for i=1,numschools do
 		size = 6+rnd(6)
 		basex=rnd(128+256)
@@ -60,7 +114,6 @@ function _init()
 			add(fishes,newfish)
 		end
 	end
-
 end
 
 function _update()
@@ -78,10 +131,14 @@ function _draw()
 	rectfill(0,16,128,128,color(12))
 	map(0,0,0,0,16,32)
 	background()
+	
+	for p in all(plants) do
+		plantsplay(p)
+	end
 	wave()
 	
-	for i=1,#fishes do
-		fishsplay(fishes[i])
+	for f in all(fishes) do
+		fishsplay(f)
 	end
 	dolphsplay()
 	octosplay()
@@ -239,12 +296,33 @@ function fishsplay(f)
 	spr(s,f.x,f.y,w,1)
 end
 
+--plants
+sway=true
+function plantsplay(p)
+ a=p.a
+	for i=0,p.h do
+		pset(p.x+p.w*sin(a),p.y-i,p.c)
+		a+=0.04
+		if a>1 then a-=0.96 end
+	end
+	
+	if sway then
+	 p.w-=0.04
+	else
+	 p.w+=0.04
+	end
+	
+	if p.w<p.maxw/6 then sway=false end
+	if p.w>p.maxw then sway=true end
+end
+
 --enviro
 function background()
+	--fix up background mountains
 	for y=9,11 do
 		for x=0,15 do
-			-- if the pixel square is not blue
-			-- change the colors
+			--if the pixel square is not blue
+			--change the colors
 			for i=0,7 do
 				for j=0,7 do
 					if pget(x*8+i,y*8+j)==13 then
