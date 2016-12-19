@@ -8,7 +8,7 @@ function _init()
 	sinkv=.5 drag=0.9
 
 	debug = false
-	level = 0
+	level = 1
 	music(10)
 	
 	type = {}
@@ -16,6 +16,7 @@ function _init()
 	type.dolph = 2
 	type.plant = 3
 	type.fish  = 4
+	type.baby  = 5
 	actors = {}
 	
 	timer = 0
@@ -102,6 +103,9 @@ function _init()
 	fishdict[6] = {x = 15*8, y = 4*8, w = 8} -- actually dolphin
 
 	plantcreate(5 * 10)
+
+	baby = make_actor(type.baby,64,80,7,8*2,false)
+	baby.snatched = false
 end
 
 function make_player()
@@ -203,14 +207,21 @@ function _update()
 			return
 		end
  		
+ 		-- check for octo collisions
  		prev_state=octo.state
 		octomove()
 		if(prev_state==state.snatch and octo.state==state.hold) then
 			snatch_collisions()
 		end
 
+		-- check for baby release
+		if(babydrop(prev_state, octo.state)) then
+			baby.snatched = false
+		end
+
 		checkedges()
 		octocount()
+		babymove()
 		dolphmove()
 		for i=1,#fishes do
 			fishmove(fishes[i])
@@ -259,6 +270,7 @@ function _draw()
 		for p in all(plants) do plantsplay(p) end
 		for f in all(fishes) do fishsplay(f) end
 		dolphsplay()
+		babysplay()
 		octosplay()
 
 		if (console.on) then
@@ -319,21 +331,18 @@ function collide(a1, a2)
 	end
 end
 
-function collide_event(a1,a2)
-	--fish
-	if(a2.type==type.fish) then
-		console.on = true
-		console.fishtype = a2.fishtype
-		console.log(random_fish_text())
-		sfx(6)
-		return true
-	end
- 
-	--dolphin
+function collide_event(a1,a2) 
+	-- dolphin
 	if(a2.type==type.dolph) then
 		console.on = true
 		console.fishtype = 6
-		console.log("i must be on my way..")
+		console.log("i have to go return some video tapes..")
+		return true
+	end
+
+	-- baby
+	if(a2.type==type.baby) then
+		baby.snatched = true
 		return true
 	end
 
@@ -348,6 +357,12 @@ function octocount()
 		octotimer+=1
 	end
 	if (wavetimer==16) wavetimer=0
+end
+
+function babydrop(prev_state, curr_state)
+	hold_prev = (prev_state==state.hold or prev_state==state.holdpush)
+	hold_curr = (curr_state==state.hold or curr_state==state.holdpush)
+	return (hold_prev and (not(hold_curr)))
 end
 
 ---- display ----
@@ -483,6 +498,11 @@ function octosplay()
 	end
 end
 
+-- baby
+function babysplay()
+	spr(83,baby.x,baby.y,1,2,baby.r)
+end
+
 -- dolphin
 function dolphlow()
 	sspr(0, 3*8, 5*8, 2*8, dolph.x,dolph.y, 50, 20, dolph.refl)
@@ -518,10 +538,6 @@ end
 
 --fishes
 function fishsplay(f)
- if(debug) then
-  hitsplay(f,11)
- end
-
 	s=44 w=2
 	if(f.fishtype==1) then s=40
 	else
@@ -663,6 +679,18 @@ function dolphmove()
 		else
 			dolph.y += 0.15
 		end
+	end
+end
+
+-- baby
+function babymove()
+	snatch_hit_zone={x=octo.x+2,
+                  y=octo.y+16,
+                  w=10,h=6}
+
+	if(baby.snatched) then
+		baby.x = snatch_hit_zone.x
+		baby.y = snatch_hit_zone.y
 	end
 end
 
