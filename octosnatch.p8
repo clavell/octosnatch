@@ -10,11 +10,13 @@ function _init()
 	debug = false
 	
 	gamestate = {}
-	gamestate.level = 0
-	gamestate.stage = 0
+	gamestate.level = 2
+	gamestate.stage = 1
 	gamestate.stage_clear = false
 	gamestate.total_num_stage = 2
-	music(10)
+	stage_data = {}
+	stage_data[1] = {babies = 1, dolph = 1, dolph_time = 2, dolph_speed = 0.4}
+	music(12)
 	
 	type = {}
 	type.octo  = 1
@@ -22,6 +24,7 @@ function _init()
 	type.plant = 3
 	type.fish  = 4
 	type.baby  = 5
+	type.squid  = 6
 	actors = {}
 	
 	timer = 0
@@ -99,9 +102,32 @@ function _init()
 	
 	dolph = make_actor(type.dolph,-64,64,8*5,8*2,true)
 	dolph.delta = 4	-- for animation
-	dolph.enabled = true
 	dolph.speed = 0.4
 	dolphcue(dolph.x, dolph.y, 0.4)
+
+	squid = make_actor(type.squid, 46, -64, 8*5, 8*3, false)
+	squid.speed = 2
+	-- display state
+	squidstate = {}
+	squidstate.close    = 1
+	squidstate.halfclose= 2
+	squidstate.open     = 3
+	squidstate.charge   = 4
+	squidstate.launch   = 5
+	squid.state = squidstate.close
+	-- behaviour
+	squidmood = {}
+	squidmood.intro 	= 1
+	squidmood.flex 		= 2
+	squidmood.open 		= 3
+	squidmood.dashright = 4
+	squidmood.dashleft 	= 5
+	squidmood.dying 	= 6
+	squid.mood = squidmood.intro
+	-- critical screen points
+	squidpoints = {}
+	squidpoints.left = {x=12,y=70}
+	squidpoints.right = {x=46,y=70}
 
 	fishcreate(3 * 10,8)
 	fishdict = {} -- fishtype, sprite coordinate
@@ -138,12 +164,14 @@ function make_actor(t,x,y,w,h,r)
 	a.w=w
 	a.h=h
 	a.refl=r
+	a.enabled=true
 	add(actors,a)
 	return a
 end
 
 function babycreate(n, level, stage)
 	babies={}
+	saved_babies={}
 	for i=1,n do
 		-- spawn babies roughly in the middle
 		baby = make_actor(type.baby, (stage*128) + 50 + rnd(28), (level-1)*128 + 60 + rnd(28),7,8*2,false)
@@ -263,31 +291,41 @@ function _update()
 				if(not(baby.snatched)) then
 					prev_baby_saved = baby.saved
 					collide(satchel_hit_zone, baby)
+					-- fresh baby save
 					if (not(prev_baby_saved) and baby.saved) then
 						sfx(6)
+						add(saved_babies, baby)
 						dolph.speed = 0.6
 					end
 				end
 			end
 
-			-- check if dolphin is past
+			-- check if dolphin is offscreen right
 			if (dolph.x > maincamera.rightedge) then
 				sfx(0)
 				dolph.enabled = false
 				gamestate.stage_clear = true
 				gamestate.stage += 1
 				maincamera.fixed = false
-				maincamera.rightedge = 128 + (128 * gamestate.stage)
-				-- spawn some more babies to the right
+				maincamera.rightedge = (128 * gamestate.stage)
+				
+				-- clear saved babies, spawn more babies to the right
+				for b in all(saved_babies) do
+					b.x = -1024
+					b.y = -1024
+				end
 			end
 		else -- stage is clear but camera is moving
 			maincamera.leftedge = max(maincamera.leftedge, maincamera.x)
-			-- cue player to go right
-			if (maincamera.x >= (128 * gamestate.stage)) then
+			
+			-- TODO: cue player to go right
+
+			-- player has entered next stage
+			if (maincamera.x >= (128 * (gamestate.stage - 1))) then
 				sfx(1)
 				maincamera.fixed = true
 				gamestate.stage_clear = false
-				maincamera.leftedge = 128 * gamestate.stage
+				maincamera.leftedge = 128 * (gamestate.stage - 1)
 				dolphcue(maincamera.leftedge - 64, 64 + rnd(32), 0.4)
 			end
 		end
@@ -309,6 +347,7 @@ function _update()
  		
  		prev_octostate=octo.octostate
 		octomove()
+		squidmove()
 		if(prev_octostate==octostate.snatch and octo.octostate==octostate.hold) then
 			snatch_collisions()
 		end
@@ -356,6 +395,8 @@ function _draw()
 		--everything that scrolls
 		camera(maincamera.x,0)
 		map(0, 16, 0, 0, 16*1, 16)
+		
+		squidsplay()
 		octosplay()
 
 		if (console.on) then
@@ -579,6 +620,7 @@ end
 
 -- baby
 function babysplay(baby)
+	if(not(baby.enabled)) then return end
 	pal(15, baby.skin)
 	pal(10, baby.hair)
 
@@ -616,6 +658,81 @@ function dolphsplay()
 		 end
 		end
 	end
+end
+
+function squidhead(x,y)
+	sspr(3*8, 9*8, 2*8, 2*8, x, y, 2*2*8, 2*2*8, squid.refl)
+end
+
+function squidchargehead(x,y)
+	sspr(3*8 - 4, 9*8, 2*8, 2*(8+1), x, y, 2*2*8, 2*2*(8+1), squid.refl)
+end
+
+function squidclose()
+	if (squid.refl) then
+		squidhead(squid.x, squid.y)
+		sspr(0, 9*8, 3*8, 3*8, squid.x + 2*2*8, squid.y, 2*3*8, 2*3*8, squid.refl)
+		sspr(3*8, 11*8, 2*8, 1*8, squid.x, squid.y + 2*2*8, 2*2*8, 2*1*8, squid.refl)
+	else
+		squidhead(squid.x + 2*3*8, squid.y)
+		sspr(0, 9*8, 3*8, 3*8, squid.x,squid.y, 2*3*8, 2*3*8, squid.refl)
+		sspr(3*8, 11*8, 2*8, 1*8, squid.x + 2*3*8, squid.y + 2*2*8, 2*2*8, 2*1*8, squid.refl)
+	end
+end
+
+function squidhalfclose()
+	if (squid.refl) then
+		squidhead(squid.x, squid.y)
+		sspr(5*8, 9*8, 3*8, 3*8, squid.x + 2*2*8, squid.y, 2*3*8, 2*3*8, squid.refl)
+		sspr(8*8, 9*8, 2*8, 1*8, squid.x, squid.y + 2*2*8, 2*2*8, 2*1*8, squid.refl)
+	else
+		squidhead(squid.x + 2*3*8, squid.y)
+		sspr(5*8, 9*8, 3*8, 3*8, squid.x,squid.y, 2*3*8, 2*3*8, squid.refl)
+		sspr(8*8, 9*8, 2*8, 1*8, squid.x + 2*3*8, squid.y + 2*2*8, 2*2*8, 2*1*8, squid.refl)
+	end
+end
+
+function squidopen()
+	if (squid.refl) then
+		squidhead(squid.x, squid.y)
+		sspr(10*8, 9*8, 3*8, 3*8, squid.x + 2*2*8, squid.y, 2*3*8, 2*3*8, squid.refl)
+		sspr(8*8, 10*8, 2*8, 1*8, squid.x, squid.y + 2*2*8, 2*2*8, 2*1*8, squid.refl)
+	else
+		squidhead(squid.x + 2*3*8, squid.y)
+		sspr(10*8, 9*8, 3*8, 3*8, squid.x,squid.y, 2*3*8, 2*3*8, squid.refl)
+		sspr(8*8, 10*8, 2*8, 1*8, squid.x + 2*3*8, squid.y + 2*2*8, 2*2*8, 2*1*8, squid.refl)
+	end
+end
+
+function squidcharge()
+	if (squid.refl) then
+		squidchargehead(squid.x, squid.y - 2)
+		sspr(13*8, 9*8, 3*8, 2*8, squid.x + 2*2*8, squid.y + 2*1*8, 2*3*8, 2*2*8, squid.refl)
+		sspr(8*8, 11*8, 1*8, 1*8, squid.x + 2*1*8, squid.y + 2*2*8, 2*1*8, 2*1*8, squid.refl)
+	else
+		squidchargehead(squid.x + 2*3*8, squid.y - 2)
+		sspr(13*8, 9*8, 3*8, 2*8, squid.x,squid.y + 2*1*8, 2*3*8, 2*2*8, squid.refl)
+		sspr(8*8, 11*8, 1*8, 1*8, squid.x + 2*3*8, squid.y + 2*2*8, 2*1*8, 2*1*8, squid.refl)
+	end
+end
+
+function squidlaunch()
+	o = {x=12,y=6}
+	if (squid.refl) then
+		squidchargehead(squid.x + 2, squid.y + 5 - o.y)
+		sspr(0, 12*8, 3*8, 2*8, squid.x + 2*1*8, squid.y + 2*2*8 - o.y, 2*3*8, 2*2*8, squid.refl)
+	else
+		squidchargehead(squid.x + 2*2*8 - 1 + o.x, squid.y + 5 - o.y)
+		sspr(0, 12*8, 3*8, 2*8, squid.x + o.x, squid.y + 2*2*8 - o.y, 2*3*8, 2*2*8, squid.refl)
+	end
+end
+
+function squidsplay()
+	if (squid.state == squidstate.close) then squidclose() end
+	if (squid.state == squidstate.halfclose) then squidhalfclose() end
+	if (squid.state == squidstate.open) then squidopen() end
+	if (squid.state == squidstate.charge) then squidcharge() end
+	if (squid.state == squidstate.launch) then squidlaunch() end
 end
 
 --fishes
@@ -793,6 +910,7 @@ end
 
 -- baby
 function babymove(baby)
+	if(not(baby.enabled)) then return end
 	snatch_hit_zone = {x=octo.x+2, y=octo.y+16, w=10, h=6}
 	satchel_hit_zone = {x=dolph.x+16, y=dolph.y+6, w=10, h=8, type=type.dolph}
 
@@ -824,6 +942,17 @@ function babymove(baby)
 		baby.x+=baby.vx
 
 		checkedges(baby)
+	end
+end
+
+--squid
+function squidmove()	
+	if (squid.mood == squidmood.intro) then
+		squid.y += squid.speed
+		if (squid.y >= squidpoints.right.y) then
+			squid.y = squidpoints.right.y
+			squid.mood = squidmood.flex
+		end
 	end
 end
 
